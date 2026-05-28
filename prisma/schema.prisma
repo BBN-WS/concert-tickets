@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  bookings  Booking[]
+}
+
+model Concert {
+  id          String   @id @default(cuid())
+  title       String
+  artist      String
+  venue       String
+  date        DateTime
+  description String
+  imageUrl    String
+  createdAt   DateTime @default(now())
+  zones       Zone[]
+  bookings    Booking[]
+}
+
+model Zone {
+  id           String       @id @default(cuid())
+  concertId    String
+  name         String
+  price        Int
+  rows         Int
+  seatsPerRow  Int
+  concert      Concert      @relation(fields: [concertId], references: [id], onDelete: Cascade)
+  bookedSeats  BookedSeat[]
+}
+
+model Booking {
+  id          String        @id @default(cuid())
+  userId      String
+  concertId   String
+  status      BookingStatus @default(PENDING)
+  totalAmount Int
+  createdAt   DateTime      @default(now())
+  paidAt      DateTime?
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concert     Concert       @relation(fields: [concertId], references: [id], onDelete: Cascade)
+  seats       BookedSeat[]
+}
+
+model BookedSeat {
+  id        String  @id @default(cuid())
+  bookingId String
+  zoneId    String
+  row       Int
+  number    Int
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  zone      Zone    @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([zoneId, row, number])
+}

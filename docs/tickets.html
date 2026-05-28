@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>บัตรของฉัน — TicketBox</title>
+  <link rel="stylesheet" href="assets/app.css" />
+</head>
+<body>
+  <div id="nav-root"></div>
+  <main class="container">
+    <h1>บัตรของฉัน</h1>
+    <div id="flash" class="flash hidden"></div>
+    <div id="list"><p class="muted">กำลังโหลด...</p></div>
+  </main>
+  <footer>© 2026 TicketBox</footer>
+
+  <script type="module" src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+  <script type="module">
+    import { supabase, formatTHB, formatThaiDate, requireLogin } from "./assets/supabase.js";
+    import { renderNavbar } from "./assets/navbar.js";
+    renderNavbar();
+
+    const user = await requireLogin();
+    if (!user) throw new Error("no user");
+
+    const paidId = new URLSearchParams(location.search).get("paid");
+    if (paidId) {
+      const flash = document.getElementById("flash");
+      flash.textContent = "ชำระเงินสำเร็จ — รับ QR e-ticket ด้านล่างได้เลย";
+      flash.classList.remove("hidden");
+    }
+
+    // Wait for QRCode global (loaded as classic <script>, not module)
+    async function ensureQRCode() {
+      if (window.QRCode) return;
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js";
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    async function load() {
+      const { data: bookings, error } = await supabase
+        .from("Booking")
+        .select(`*, Concert(*), BookedSeat(*, Zone(*))`)
+        .in("status", ["PENDING", "PAID"])
+        .order("createdAt", { ascending: false });
+      if (error) {
+        document.getElementById("list").innerHTML = `<p class="error">${error.message}</p>`;
+        return;
+      }
+      if (!bookings || bookings.length === 0) {
+        document.getElementById("list").innerHTML = `<p class="muted">ยังไม่มีการจอง ลองดูคอนเสิร์ตที่หน้าแรก</p>`;
+        return;
+      }
+      await ensureQRCode();
+      document.getElementById("list").innerHTML = bookings.map((b) => renderTicket(b)).join("");
+      for (const b of bookings) {
+        if (b.status === "PAID") drawQR(b);
+      }
+      document.querySelectorAll("[data-cancel]").forEach((btn) => {
+        btn.addEventListener("click", () => onCancel(btn.dataset.cancel));
+      });
+    }
+
+    function renderTicket(b) {
+      const seats = b.BookedSeat.map((s) => `
+        <li><span style="color:#e879f9">${escapeHtml(s.Zone.name)}</span> · แถว ${s.row} ที่ ${s.number}
+          · <span style="color:#a3a3a3">${formatTHB(s.Zone.price)}</span></li>
+      `).join("");
+      const isPaid = b.status === "PAID";
+      const actions = isPaid ? "" : `
+        <div style="display:flex; gap:8px; margin-top:12px">
+          <a class="btn btn-primary btn-sm" href="checkout.html?id=${encodeURIComponent(b.id)}">ชำระเงิน</a>
+          <button class="btn btn-sm" data-cancel="${escapeAttr(b.id)}">ยกเลิก</button>
+        </div>
+      `;
+      const qrSlot = isPaid
+        ? `<canvas id="qr-${escapeAttr(b.id)}" class="qr-img" width="160" height="160"></canvas>
+           <p class="muted" style="margin-top:8px">แสดง QR ที่หน้างาน</p>`
+        : `<div class="qr-placeholder">QR จะปรากฏหลังชำระเงิน</div>`;
+
+      return `
+        <article class="ticket" id="booking-${escapeAttr(b.id)}">
+          <div class="ticket-grid">
+            <div class="ticket-body">
+              <div class="ticket-header">
+                <div>
+                  <p class="artist">${escapeHtml(b.Concert.artist)}</p>
+                  <h3>${escapeHtml(b.Concert.title)}</h3>
+                </div>
+                <span class="badge ${isPaid ? "badge-paid" : "badge-pending"}">${isPaid ? "ชำระแล้ว" : "รอชำระเงิน"}</span>
+              </div>
+              <p class="muted">${escapeHtml(formatThaiDate(b.Concert.date))}</p>
+              <p class="muted" style="margin-bottom:10px">${escapeHtml(b.Concert.venue)}</p>
+              <ul style="list-style:none; padding:0; margin:0 0 10px; font-size:13px">${seats}</ul>
+              <p style="font-size:14px">รวม: <b style="color:#e879f9">${formatTHB(b.totalAmount)}</b></p>
+              ${actions}
+            </div>
+            <div class="ticket-qr">${qrSlot}</div>
+          </div>
+        </article>
+      `;
+    }
+
+    function drawQR(b) {
+      const el = document.getElementById(`qr-${b.id}`);
+      if (!el || !window.QRCode) return;
+      const payload = JSON.stringify({
+        bookingId: b.id,
+        concert: b.Concert.title,
+        seats: b.BookedSeat.map((s) => `${s.Zone.name}/R${s.row}/N${s.number}`),
+      });
+      window.QRCode.toCanvas(el, payload, { margin: 1, width: 160 });
+    }
+
+    async function onCancel(id) {
+      if (!confirm("ยกเลิกการจองนี้?")) return;
+      // delete seats first (RLS allows because seat -> booking -> user)
+      await supabase.from("BookedSeat").delete().eq("bookingId", id);
+      const { error } = await supabase
+        .from("Booking")
+        .update({ status: "CANCELLED" })
+        .eq("id", id);
+      if (error) { alert("ยกเลิกล้มเหลว: " + error.message); return; }
+      location.reload();
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    }
+    function escapeAttr(s) { return escapeHtml(s); }
+
+    load();
+  </script>
+</body>
+</html>

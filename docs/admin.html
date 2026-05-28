@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — TicketBox</title>
+  <link rel="stylesheet" href="assets/app.css" />
+</head>
+<body>
+  <div id="nav-root"></div>
+  <main class="container">
+    <div id="root"><p class="muted">กำลังตรวจสอบสิทธิ์...</p></div>
+  </main>
+  <footer>© 2026 TicketBox</footer>
+
+  <script type="module">
+    import { supabase, formatTHB, formatThaiDate, newId, requireLogin, getProfile } from "./assets/supabase.js";
+    import { renderNavbar } from "./assets/navbar.js";
+    renderNavbar();
+
+    const user = await requireLogin();
+    if (!user) throw new Error("no user");
+    const profile = await getProfile(user.id);
+    if (!profile?.is_admin) {
+      document.getElementById("root").innerHTML = `
+        <div style="text-align:center; padding:60px 20px">
+          <h1>ไม่อนุญาต</h1>
+          <p class="muted">หน้านี้เฉพาะผู้ดูแลระบบ (is_admin = TRUE ใน profiles)</p>
+        </div>
+      `;
+      throw new Error("not admin");
+    }
+
+    async function load() {
+      const [{ data: concerts }, { data: bookings }] = await Promise.all([
+        supabase.from("Concert").select(`*, Zone(*), Booking(count)`).order("date"),
+        supabase.from("Booking").select("totalAmount,status").eq("status", "PAID"),
+      ]);
+
+      const totalRev = (bookings ?? []).reduce((s, b) => s + b.totalAmount, 0);
+      const paidCount = (bookings ?? []).length;
+
+      document.getElementById("root").innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px">
+          <h1 style="margin:0">Admin Dashboard</h1>
+          <button class="btn btn-primary" id="toggle-form">+ เพิ่มคอนเสิร์ต</button>
+        </div>
+        <div class="stats">
+          <div class="stat"><p class="label">คอนเสิร์ตทั้งหมด</p><p class="value">${(concerts ?? []).length}</p></div>
+          <div class="stat"><p class="label">บัตรที่ขายได้</p><p class="value">${paidCount}</p></div>
+          <div class="stat"><p class="label">รายได้รวม</p><p class="value accent">${formatTHB(totalRev)}</p></div>
+        </div>
+
+        <div id="new-concert-panel" class="panel hidden" style="margin-bottom:20px">
+          ${renderNewForm()}
+        </div>
+
+        <h2>คอนเสิร์ตทั้งหมด</h2>
+        <div class="panel" style="padding:0; overflow:hidden">
+          <table class="table">
+            <thead><tr>
+              <th>คอนเสิร์ต</th><th>วันที่</th><th>โซน</th><th style="text-align:right">การจอง</th><th></th>
+            </tr></thead>
+            <tbody>
+              ${(concerts ?? []).map((c) => `
+                <tr>
+                  <td><div style="font-weight:600">${escapeHtml(c.title)}</div><div class="muted" style="font-size:12px">${escapeHtml(c.artist)}</div></td>
+                  <td class="muted">${escapeHtml(formatThaiDate(c.date))}</td>
+                  <td class="muted">${c.Zone.length} โซน</td>
+                  <td style="text-align:right">${c.Booking[0]?.count ?? 0}</td>
+                  <td style="text-align:right"><button class="btn btn-danger btn-sm" data-del="${escapeAttr(c.id)}" data-title="${escapeAttr(c.title)}">ลบ</button></td>
+                </tr>
+              `).join("") || `<tr><td colspan="5" style="text-align:center; padding:24px" class="muted">ยังไม่มีคอนเสิร์ต</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      document.getElementById("toggle-form").addEventListener("click", () => {
+        document.getElementById("new-concert-panel").classList.toggle("hidden");
+      });
+      bindNewForm();
+      document.querySelectorAll("[data-del]").forEach((b) => {
+        b.addEventListener("click", () => onDelete(b.dataset.del, b.dataset.title));
+      });
+    }
+
+    function renderNewForm() {
+      return `
+        <h2 style="margin-top:0">เพิ่มคอนเสิร์ตใหม่</h2>
+        <form id="new-form">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px">
+            <div class="field"><label>ชื่อคอนเสิร์ต</label><input id="f-title" required/></div>
+            <div class="field"><label>ศิลปิน</label><input id="f-artist" required/></div>
+            <div class="field"><label>สถานที่</label><input id="f-venue" required/></div>
+            <div class="field"><label>วันที่และเวลา</label><input id="f-date" type="datetime-local" required/></div>
+          </div>
+          <div class="field"><label>URL รูปปก</label><input id="f-img" type="url" value="https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=1200" required/></div>
+          <div class="field"><label>รายละเอียด</label><textarea id="f-desc" rows="3"></textarea></div>
+          <div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px">
+              <label style="font-weight:500">โซนที่นั่ง</label>
+              <button type="button" class="btn btn-sm" id="add-zone">+ เพิ่มโซน</button>
+            </div>
+            <div id="zones-list"></div>
+            <p class="muted" style="font-size:12px; margin-top:4px">ราคา (บาท) · แถว · ที่นั่ง/แถว</p>
+          </div>
+          <p id="new-error" class="error hidden"></p>
+          <button class="btn btn-primary" style="width:100%; padding:10px; margin-top:10px" id="new-submit" type="submit">บันทึกคอนเสิร์ต</button>
+        </form>
+      `;
+    }
+
+    let zones = [
+      { name: "VIP", price: 5000, rows: 5, seatsPerRow: 10 },
+      { name: "Standard", price: 2500, rows: 10, seatsPerRow: 12 },
+    ];
+
+    function bindNewForm() {
+      drawZones();
+      document.getElementById("add-zone").addEventListener("click", () => {
+        zones.push({ name: "", price: 1000, rows: 5, seatsPerRow: 10 });
+        drawZones();
+      });
+      document.getElementById("new-form").addEventListener("submit", onSubmit);
+    }
+
+    function drawZones() {
+      const root = document.getElementById("zones-list");
+      root.innerHTML = zones.map((z, i) => `
+        <div class="zone-row">
+          <input data-i="${i}" data-k="name" placeholder="ชื่อโซน" value="${escapeAttr(z.name)}"/>
+          <input data-i="${i}" data-k="price" type="number" placeholder="ราคา" value="${z.price}"/>
+          <input data-i="${i}" data-k="rows" type="number" placeholder="แถว" value="${z.rows}"/>
+          <input data-i="${i}" data-k="seatsPerRow" type="number" placeholder="ที่/แถว" value="${z.seatsPerRow}"/>
+          <button class="btn btn-danger btn-sm" type="button" data-zone-del="${i}" ${zones.length <= 1 ? "disabled" : ""}>ลบ</button>
+        </div>
+      `).join("");
+      root.querySelectorAll("input").forEach((inp) => {
+        inp.addEventListener("input", () => {
+          const i = +inp.dataset.i, k = inp.dataset.k;
+          zones[i][k] = inp.type === "number" ? +inp.value : inp.value;
+        });
+      });
+      root.querySelectorAll("[data-zone-del]").forEach((b) => {
+        b.addEventListener("click", () => {
+          zones.splice(+b.dataset.zoneDel, 1);
+          drawZones();
+        });
+      });
+    }
+
+    async function onSubmit(e) {
+      e.preventDefault();
+      const errEl = document.getElementById("new-error");
+      const btn = document.getElementById("new-submit");
+      errEl.classList.add("hidden");
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>กำลังบันทึก...';
+      const concertId = newId("concert");
+      const { error: cErr } = await supabase.from("Concert").insert({
+        id: concertId,
+        title: document.getElementById("f-title").value,
+        artist: document.getElementById("f-artist").value,
+        venue: document.getElementById("f-venue").value,
+        date: new Date(document.getElementById("f-date").value).toISOString(),
+        description: document.getElementById("f-desc").value,
+        imageUrl: document.getElementById("f-img").value,
+      });
+      if (cErr) {
+        errEl.textContent = "บันทึกล้มเหลว: " + cErr.message;
+        errEl.classList.remove("hidden");
+        btn.disabled = false; btn.textContent = "บันทึกคอนเสิร์ต";
+        return;
+      }
+      const zoneRows = zones.map((z) => ({
+        id: newId("zone"),
+        concertId,
+        name: z.name,
+        price: +z.price,
+        rows: +z.rows,
+        seatsPerRow: +z.seatsPerRow,
+      }));
+      const { error: zErr } = await supabase.from("Zone").insert(zoneRows);
+      if (zErr) {
+        await supabase.from("Concert").delete().eq("id", concertId);
+        errEl.textContent = "สร้างโซนล้มเหลว: " + zErr.message;
+        errEl.classList.remove("hidden");
+        btn.disabled = false; btn.textContent = "บันทึกคอนเสิร์ต";
+        return;
+      }
+      location.reload();
+    }
+
+    async function onDelete(id, title) {
+      if (!confirm(`ลบคอนเสิร์ต "${title}"? การจองทั้งหมดจะถูกลบด้วย`)) return;
+      const { error } = await supabase.from("Concert").delete().eq("id", id);
+      if (error) { alert("ลบล้มเหลว: " + error.message); return; }
+      location.reload();
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    }
+    function escapeAttr(s) { return escapeHtml(s); }
+
+    load();
+  </script>
+</body>
+</html>

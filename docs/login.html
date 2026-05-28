@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>เข้าสู่ระบบ — TicketBox</title>
+  <link rel="stylesheet" href="assets/app.css" />
+</head>
+<body>
+  <div id="nav-root"></div>
+  <main class="container-sm">
+    <div class="panel">
+      <h1>เข้าสู่ระบบ</h1>
+      <form id="login-form">
+        <div class="field">
+          <label for="email">อีเมล</label>
+          <input id="email" type="email" required autocomplete="email" />
+        </div>
+        <div class="field">
+          <label for="password">รหัสผ่าน</label>
+          <input id="password" type="password" required autocomplete="current-password" />
+        </div>
+        <p id="error" class="error hidden"></p>
+        <button class="btn btn-primary" style="width:100%; padding:10px" type="submit" id="submit-btn">
+          เข้าสู่ระบบ
+        </button>
+      </form>
+      <p class="muted" style="margin-top:14px">
+        ยังไม่มีบัญชี? <a href="register.html" style="color:#e879f9">สมัครสมาชิก</a>
+      </p>
+    </div>
+  </main>
+  <footer>© 2026 TicketBox</footer>
+
+  <script type="module">
+    import { supabase } from "./assets/supabase.js";
+    import { renderNavbar } from "./assets/navbar.js";
+    renderNavbar();
+
+    const params = new URLSearchParams(location.search);
+    const next = params.get("next") || "index.html";
+
+    const form = document.getElementById("login-form");
+    const errorEl = document.getElementById("error");
+    const submitBtn = document.getElementById("submit-btn");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.classList.add("hidden");
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner"></span>กำลังเข้าสู่ระบบ...';
+      const { error } = await supabase.auth.signInWithPassword({
+        email: document.getElementById("email").value,
+        password: document.getElementById("password").value,
+      });
+      submitBtn.disabled = false;
+      submitBtn.textContent = "เข้าสู่ระบบ";
+      if (error) {
+        errorEl.textContent = "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+      location.href = next;
+    });
+  </script>
+</body>
+</html>

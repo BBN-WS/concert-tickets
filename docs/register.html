@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>สมัครสมาชิก — TicketBox</title>
+  <link rel="stylesheet" href="assets/app.css" />
+</head>
+<body>
+  <div id="nav-root"></div>
+  <main class="container-sm">
+    <div class="panel">
+      <h1>สมัครสมาชิก</h1>
+      <form id="register-form">
+        <div class="field">
+          <label for="name">ชื่อ</label>
+          <input id="name" type="text" required />
+        </div>
+        <div class="field">
+          <label for="email">อีเมล</label>
+          <input id="email" type="email" required autocomplete="email" />
+        </div>
+        <div class="field">
+          <label for="password">รหัสผ่าน (อย่างน้อย 6 ตัว)</label>
+          <input id="password" type="password" minlength="6" required autocomplete="new-password" />
+        </div>
+        <p id="error" class="error hidden"></p>
+        <p id="info" class="muted hidden"></p>
+        <button class="btn btn-primary" style="width:100%; padding:10px" type="submit" id="submit-btn">
+          สมัครสมาชิก
+        </button>
+      </form>
+      <p class="muted" style="margin-top:14px">
+        มีบัญชีแล้ว? <a href="login.html" style="color:#e879f9">เข้าสู่ระบบ</a>
+      </p>
+    </div>
+  </main>
+  <footer>© 2026 TicketBox</footer>
+
+  <script type="module">
+    import { supabase } from "./assets/supabase.js";
+    import { renderNavbar } from "./assets/navbar.js";
+    renderNavbar();
+
+    const form = document.getElementById("register-form");
+    const errorEl = document.getElementById("error");
+    const infoEl = document.getElementById("info");
+    const submitBtn = document.getElementById("submit-btn");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.classList.add("hidden");
+      infoEl.classList.add("hidden");
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner"></span>กำลังสมัคร...';
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      const name = document.getElementById("name").value;
+
+      const { data, error } = await supabase.auth.signUp({
+        email, password,
+        options: { data: { name } },
+      });
+      submitBtn.disabled = false;
+      submitBtn.textContent = "สมัครสมาชิก";
+      if (error) {
+        errorEl.textContent = error.message;
+        errorEl.classList.remove("hidden");
+        return;
+      }
+      if (data.session) {
+        location.href = "index.html";
+      } else {
+        infoEl.textContent = "สมัครสำเร็จ — โปรดตรวจอีเมลเพื่อยืนยันบัญชี แล้วกลับมา login";
+        infoEl.classList.remove("hidden");
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ชำระเงิน — TicketBox</title>
+  <link rel="stylesheet" href="assets/app.css" />
+</head>
+<body>
+  <div id="nav-root"></div>
+  <main class="container-md">
+    <h1 style="margin-bottom:20px">ชำระเงิน</h1>
+    <div id="root"><p class="muted">กำลังโหลด...</p></div>
+  </main>
+  <footer>© 2026 TicketBox</footer>
+
+  <script type="module">
+    import { supabase, formatTHB, formatThaiDate, requireLogin } from "./assets/supabase.js";
+    import { renderNavbar } from "./assets/navbar.js";
+    renderNavbar();
+
+    const bookingId = new URLSearchParams(location.search).get("id");
+    if (!bookingId) location.replace("index.html");
+
+    const user = await requireLogin();
+    if (!user) throw new Error("no user");
+
+    async function load() {
+      const { data: booking, error } = await supabase
+        .from("Booking")
+        .select(`*, Concert(*), BookedSeat(*, Zone(*))`)
+        .eq("id", bookingId)
+        .maybeSingle();
+      if (error || !booking) {
+        document.getElementById("root").innerHTML = `<p class="error">ไม่พบการจอง</p>`;
+        return;
+      }
+      if (booking.status === "PAID") {
+        location.replace(`tickets.html#booking-${booking.id}`);
+        return;
+      }
+      render(booking);
+    }
+
+    function render(b) {
+      const seatsHtml = b.BookedSeat.map((s) => `
+        <li>
+          <span><span style="color:#e879f9">${escapeHtml(s.Zone.name)}</span> · แถว ${s.row} ที่ ${s.number}</span>
+          <span>${formatTHB(s.Zone.price)}</span>
+        </li>
+      `).join("");
+      document.getElementById("root").innerHTML = `
+        <div style="display:grid; gap:20px; grid-template-columns:1fr; ${window.innerWidth > 700 ? 'grid-template-columns:1fr 1fr' : ''}">
+          <div class="panel">
+            <h2 style="margin-top:0">สรุปคำสั่งซื้อ</h2>
+            <p style="color:#e879f9; margin:0">${escapeHtml(b.Concert.artist)}</p>
+            <p style="font-weight:600; margin:4px 0 4px">${escapeHtml(b.Concert.title)}</p>
+            <p class="muted">${escapeHtml(formatThaiDate(b.Concert.date))}</p>
+            <p class="muted">${escapeHtml(b.Concert.venue)}</p>
+            <ul style="list-style:none; padding:0; margin:12px 0 0; border-top:1px solid #262626; padding-top:12px; font-size:13px">
+              ${seatsHtml.replace(/<li>/g, '<li style="display:flex; justify-content:space-between; padding:4px 0">')}
+            </ul>
+            <div style="display:flex; justify-content:space-between; margin-top:12px; padding-top:12px; border-top:1px solid #262626; font-weight:700">
+              <span>รวมทั้งหมด</span><span style="color:#e879f9">${formatTHB(b.totalAmount)}</span>
+            </div>
+          </div>
+          <form id="pay-form" class="panel">
+            <h2 style="margin-top:0">ข้อมูลบัตรเครดิต (จำลอง)</h2>
+            <p class="muted" style="margin:0 0 12px">นี่คือระบบสาธิต ไม่มีการตัดเงินจริง</p>
+            <div class="field"><label>หมายเลขบัตร</label><input id="card" value="4242 4242 4242 4242" style="font-family:ui-monospace, monospace"/></div>
+            <div class="field"><label>ชื่อบนบัตร</label><input id="cardname" placeholder="JOHN DOE" style="text-transform:uppercase"/></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
+              <div class="field"><label>วันหมดอายุ</label><input id="exp" value="12/28"/></div>
+              <div class="field"><label>CVC</label><input id="cvc" value="123"/></div>
+            </div>
+            <p id="error" class="error hidden"></p>
+            <button class="btn btn-primary" style="width:100%; padding:10px" type="submit" id="pay-btn">
+              ชำระเงิน ${formatTHB(b.totalAmount)}
+            </button>
+          </form>
+        </div>
+      `;
+      document.getElementById("pay-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById("pay-btn");
+        const errEl = document.getElementById("error");
+        errEl.classList.add("hidden");
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>กำลังประมวลผล...';
+        await new Promise((r) => setTimeout(r, 800));
+        const { error } = await supabase
+          .from("Booking")
+          .update({ status: "PAID", paidAt: new Date().toISOString() })
+          .eq("id", b.id);
+        if (error) {
+          errEl.textContent = "ชำระเงินล้มเหลว: " + error.message;
+          errEl.classList.remove("hidden");
+          btn.disabled = false;
+          btn.textContent = "ชำระเงิน " + formatTHB(b.totalAmount);
+          return;
+        }
+        location.href = `tickets.html?paid=${b.id}`;
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    }
+
+    load();
+  </script>
+</body>
+</html>

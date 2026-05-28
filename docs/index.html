@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TicketBox — จองบัตรคอนเสิร์ต</title>
+  <link rel="stylesheet" href="assets/app.css" />
+</head>
+<body>
+  <div id="nav-root"></div>
+  <main class="container">
+    <section class="hero">
+      <h1>จองบัตร<span class="accent">คอนเสิร์ต</span>โปรดของคุณ</h1>
+      <p>เลือกคอนเสิร์ต เลือกที่นั่ง ชำระเงิน รับ QR e-ticket ทันที</p>
+    </section>
+
+    <h2>คอนเสิร์ตที่กำลังจะมาถึง</h2>
+    <div id="concert-list" class="grid">
+      <p class="muted" id="loading">กำลังโหลด...</p>
+    </div>
+  </main>
+  <footer>© 2026 TicketBox — สาธิตการจองบัตรคอนเสิร์ต</footer>
+
+  <script type="module">
+    import { supabase, formatTHB, formatThaiDate } from "./assets/supabase.js";
+    import { renderNavbar } from "./assets/navbar.js";
+
+    renderNavbar();
+
+    async function loadConcerts() {
+      const list = document.getElementById("concert-list");
+      const { data: concerts, error } = await supabase
+        .from("Concert")
+        .select("id,title,artist,venue,date,description,imageUrl,Zone(price)")
+        .order("date", { ascending: true });
+
+      if (error) {
+        list.innerHTML = `<p class="error">โหลดล้มเหลว: ${error.message}</p>`;
+        return;
+      }
+      if (!concerts || concerts.length === 0) {
+        list.innerHTML = `<p class="muted">ยังไม่มีคอนเสิร์ตในระบบ</p>`;
+        return;
+      }
+      list.innerHTML = concerts.map((c) => {
+        const minPrice = Math.min(...c.Zone.map((z) => z.price));
+        return `
+          <a class="card" href="concert.html?id=${encodeURIComponent(c.id)}">
+            <div class="card-img"><img src="${c.imageUrl}" alt="${escapeAttr(c.title)}" loading="lazy" /></div>
+            <div class="card-body">
+              <p class="card-artist">${escapeHtml(c.artist)}</p>
+              <h3 class="card-title">${escapeHtml(c.title)}</h3>
+              <p class="card-meta">${escapeHtml(formatThaiDate(c.date))}</p>
+              <p class="card-meta">${escapeHtml(c.venue)}</p>
+              <p class="card-price">เริ่มต้น <b>${formatTHB(minPrice)}</b></p>
+            </div>
+          </a>
+        `;
+      }).join("");
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    }
+    function escapeAttr(s) { return escapeHtml(s); }
+
+    loadConcerts();
+  </script>
+</body>
+</html>

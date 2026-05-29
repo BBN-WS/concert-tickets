@@ -113,14 +113,15 @@
     }
 
     let zones = [
-      { name: "VIP", price: 5000, rows: 5, seatsPerRow: 10 },
-      { name: "Standard", price: 2500, rows: 10, seatsPerRow: 12 },
+      { name: "VIP Package", price: 6000, kind: "standing", capacity: 300, rows: 0, seatsPerRow: 0 },
+      { name: "Cat 1", price: 4000, kind: "seated", capacity: 0, rows: 8, seatsPerRow: 16 },
+      { name: "Cat 2", price: 2500, kind: "seated", capacity: 0, rows: 10, seatsPerRow: 18 },
     ];
 
     function bindNewForm() {
       drawZones();
       document.getElementById("add-zone").addEventListener("click", () => {
-        zones.push({ name: "", price: 1000, rows: 5, seatsPerRow: 10 });
+        zones.push({ name: "", price: 1000, kind: "seated", capacity: 0, rows: 6, seatsPerRow: 12 });
         drawZones();
       });
       document.getElementById("new-form").addEventListener("submit", onSubmit);
@@ -128,19 +129,33 @@
 
     function drawZones() {
       const root = document.getElementById("zones-list");
-      root.innerHTML = zones.map((z, i) => `
-        <div class="zone-row">
+      root.innerHTML = zones.map((z, i) => {
+        const sizeFields = z.kind === "standing"
+          ? `<input data-i="${i}" data-k="capacity" type="number" placeholder="ความจุ (ใบ)" value="${z.capacity}" style="grid-column: span 2"/>`
+          : `<input data-i="${i}" data-k="rows" type="number" placeholder="แถว" value="${z.rows}"/>
+             <input data-i="${i}" data-k="seatsPerRow" type="number" placeholder="ที่/แถว" value="${z.seatsPerRow}"/>`;
+        return `
+        <div class="zone-row zone-row-x">
           <input data-i="${i}" data-k="name" placeholder="ชื่อโซน" value="${escapeAttr(z.name)}"/>
           <input data-i="${i}" data-k="price" type="number" placeholder="ราคา" value="${z.price}"/>
-          <input data-i="${i}" data-k="rows" type="number" placeholder="แถว" value="${z.rows}"/>
-          <input data-i="${i}" data-k="seatsPerRow" type="number" placeholder="ที่/แถว" value="${z.seatsPerRow}"/>
+          <select data-i="${i}" data-k="kind">
+            <option value="seated" ${z.kind === "seated" ? "selected" : ""}>นั่ง</option>
+            <option value="standing" ${z.kind === "standing" ? "selected" : ""}>ยืน</option>
+          </select>
+          ${sizeFields}
           <button class="btn btn-danger btn-sm" type="button" data-zone-del="${i}" ${zones.length <= 1 ? "disabled" : ""}>ลบ</button>
-        </div>
-      `).join("");
+        </div>`;
+      }).join("");
       root.querySelectorAll("input").forEach((inp) => {
         inp.addEventListener("input", () => {
           const i = +inp.dataset.i, k = inp.dataset.k;
           zones[i][k] = inp.type === "number" ? +inp.value : inp.value;
+        });
+      });
+      root.querySelectorAll("select").forEach((sel) => {
+        sel.addEventListener("change", () => {
+          zones[+sel.dataset.i].kind = sel.value;
+          drawZones(); // re-render to swap size inputs
         });
       });
       root.querySelectorAll("[data-zone-del]").forEach((b) => {
@@ -179,8 +194,10 @@
         concertId,
         name: z.name,
         price: +z.price,
-        rows: +z.rows,
-        seatsPerRow: +z.seatsPerRow,
+        kind: z.kind === "standing" ? "standing" : "seated",
+        capacity: z.kind === "standing" ? (+z.capacity || 0) : null,
+        rows: z.kind === "standing" ? 0 : +z.rows,
+        seatsPerRow: z.kind === "standing" ? 0 : +z.seatsPerRow,
       }));
       const { error: zErr } = await supabase.from("Zone").insert(zoneRows);
       if (zErr) {

@@ -1,276 +1,221 @@
-// SVG venue maps that resemble the real-world layout.
-// Two layouts are supported: stadium (oval) and arena (rectangular).
+// SVG venue maps inspired by ThaiTicketMajor layouts.
+// Zones are colour-coded by PRICE TIER (highest price = brightest), with a
+// price legend — the signature pattern of Thai ticketing seat maps.
+// Supports two venue types: stadium (Rajamangala-style) and arena (Impact-style).
 
-const ZONE_COLORS = [
-  // first zone (closest to stage) → richest, last → softest
-  "url(#grad-zone-0)",
-  "url(#grad-zone-1)",
-  "url(#grad-zone-2)",
-  "url(#grad-zone-3)",
+// Tier palette: index 0 = most expensive → brightest pink, descending to cyan.
+const TIER_COLORS = [
+  "#f0abfc", "#e879f9", "#d946ef", "#a855f7",
+  "#7c3aed", "#6366f1", "#3b82f6", "#22d3ee",
 ];
 
-/**
- * Detect venue type from venue name (Thai or English).
- * @returns {"stadium"|"arena"}
- */
 export function detectVenueType(venue) {
   const v = (venue || "").toLowerCase();
-  if (/stadium|rajamangala|ราชมังคลา|ม\.ราม|outdoor|national|main stand/i.test(v))
-    return "stadium";
-  if (/arena|อารีน่า|อิมแพ็ค|impact|hall|theatre|theater/i.test(v))
-    return "arena";
-  // default — stadium feels grander, default to it
+  if (/arena|อารีน่า|อิมแพ็ค|impact|hall|theatre|theater|ธันเดอร์|thunder/i.test(v)) return "arena";
+  if (/stadium|rajamangala|ราชมังคลา|ม\.ราม|national|กีฬา/i.test(v)) return "stadium";
   return "stadium";
 }
 
-/**
- * Render a venue map SVG into a container.
- * @param {{ container: HTMLElement, venueType: string, zones: Array, activeZoneId?: string, onZoneClick: (zoneId: string) => void, formatPrice: (n: number) => string }} opts
- */
-export function renderVenueMap({
-  container,
-  venueType,
-  zones,
-  activeZoneId,
-  onZoneClick,
-  formatPrice,
-}) {
-  const svg =
-    venueType === "arena" ? renderArena(zones, activeZoneId) : renderStadium(zones, activeZoneId);
-  const legend = renderLegend(zones, formatPrice);
+// Map each zone to a tier index based on its price rank (desc).
+function assignTiers(zones) {
+  const prices = [...new Set(zones.map((z) => z.price))].sort((a, b) => b - a);
+  const tierOf = new Map(prices.map((p, i) => [p, Math.min(i, TIER_COLORS.length - 1)]));
+  return zones.map((z) => ({ ...z, tier: tierOf.get(z.price), color: TIER_COLORS[tierOf.get(z.price)] }));
+}
+
+export function renderVenueMap({ container, venueType, zones, activeZoneId, onZoneClick, formatPrice }) {
+  const tz = assignTiers(zones);
+  const svg = venueType === "arena" ? renderArena(tz, activeZoneId) : renderStadium(tz, activeZoneId);
   container.innerHTML = `
-    <div class="venue-map-wrap">
-      ${svg}
-    </div>
-    <div class="venue-legend">${legend}</div>
+    <div class="venue-map-wrap">${svg}</div>
+    <div class="venue-legend">${renderLegend(tz, formatPrice)}</div>
   `;
   container.querySelectorAll("[data-zone-region]").forEach((el) => {
     el.addEventListener("click", () => onZoneClick(el.dataset.zoneRegion));
   });
 }
 
-/* ---------- Stadium (Rajamangala) ----------
-   Oval stadium with stage at the top.
-   Zones wrap around in concentric horseshoe bands:
-     zone 0 (VIP)        → "pit" right in front of stage
-     zone 1 (Standard A) → middle band
-     zone 2 (Standard B) → outer band
-   Extra zones fall back to inner if not enough room.
------------------------------------------ */
-function renderStadium(zones, activeZoneId) {
-  const W = 600, H = 420;
-  const cx = W / 2, cy = H * 0.62;
-  // outer field outline
-  const fieldRx = 260, fieldRy = 200;
-
-  // zone bands: each band = outer arc from r1 to r2
-  // Zones[0] = closest to stage (pit + side arcs in front)
-  // Subsequent zones = bigger bands further from stage
-  const bands = [];
-  const maxZones = Math.min(zones.length, 3);
-  const innermost = 80;
-  const stepRx = (fieldRx - innermost) / maxZones;
-  const stepRy = (fieldRy - 60) / maxZones;
-
-  for (let i = 0; i < zones.length; i++) {
-    const idx = Math.min(i, maxZones - 1);
-    const r1x = innermost + idx * stepRx;
-    const r1y = 60 + idx * stepRy;
-    const r2x = innermost + (idx + 1) * stepRx;
-    const r2y = 60 + (idx + 1) * stepRy;
-    bands.push({ zone: zones[i], r1x, r1y, r2x, r2y, colorIdx: Math.min(i, ZONE_COLORS.length - 1) });
-  }
-
-  const stageHeight = 36;
-  const stageY = cy - fieldRy - stageHeight - 14;
-
-  const grads = renderGradients();
-
-  // Build zone paths — horseshoe band from -160° to -20° wrapping below stage.
-  // Each band is rendered as an annulus segment (outer ellipse arc + inner ellipse arc).
-  const zonePaths = bands
-    .map((band) => {
-      const isActive = band.zone.id === activeZoneId;
-      const dimmed = activeZoneId && !isActive ? "dimmed" : "";
-      // Full annulus (closed horseshoe) — start angle from stage left to stage right going below
-      const start = -170, end = -10; // degrees
-      const path = bandPath(cx, cy, band.r1x, band.r1y, band.r2x, band.r2y, start, end);
-      // Label position (mid-arc, between r1 and r2)
-      const midAngle = (start + end) / 2;
-      const labelR = ((band.r1x + band.r2x) / 2);
-      const labelRy = ((band.r1y + band.r2y) / 2);
-      const lx = cx + labelR * Math.cos(midAngle * Math.PI / 180);
-      const ly = cy + labelRy * Math.sin(midAngle * Math.PI / 180);
-
-      return `
-        <path d="${path}"
-          class="venue-zone ${dimmed}"
-          fill="${ZONE_COLORS[band.colorIdx]}"
-          stroke="rgba(255,255,255,0.08)"
-          data-zone-region="${escapeAttr(band.zone.id)}" />
-        <text x="${lx}" y="${ly}" class="venue-zone-label">${escapeText(band.zone.name)}</text>
-      `;
-    })
-    .join("");
-
-  return `
-    <svg class="venue-map" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-      ${grads}
-      <!-- field background -->
-      <ellipse cx="${cx}" cy="${cy}" rx="${fieldRx + 16}" ry="${fieldRy + 16}"
-        fill="rgba(168,85,247,0.04)" stroke="rgba(168,85,247,0.18)" stroke-width="1" />
-      <!-- inner field -->
-      <ellipse cx="${cx}" cy="${cy}" rx="${innermost - 4}" ry="60"
-        fill="rgba(7,6,12,0.6)" stroke="rgba(217,70,239,0.2)" stroke-width="1" />
-      <text x="${cx}" y="${cy + 4}" class="venue-stage-label" style="font-size:10px; fill:var(--text-muted);">PITCH</text>
-
-      ${zonePaths}
-
-      <!-- stage at top -->
-      <rect x="${cx - 110}" y="${stageY}" width="220" height="${stageHeight}"
-        rx="6" class="venue-stage" />
-      <text x="${cx}" y="${stageY + 23}" class="venue-stage-label">STAGE · เวที</text>
-
-      <!-- compass: front/back labels -->
-      <text x="${cx}" y="22" text-anchor="middle" style="font-size:10px; fill:var(--text-muted);">
-        Stadium · view from above
-      </text>
-    </svg>
-  `;
-}
-
-/* ---------- Arena (Impact) ----------
-   Rectangular indoor arena, stage at one end.
-   Zones are parallel bands stretching across the floor.
------------------------------------------ */
-function renderArena(zones, activeZoneId) {
-  const W = 600, H = 420;
-  const pad = 30;
-  const stageH = 44;
-  const stageY = pad;
-
-  const floorY = stageY + stageH + 14;
-  const floorH = H - floorY - pad;
-  const floorX = pad + 30;
-  const floorW = W - 2 * (pad + 30);
-
-  const grads = renderGradients();
-
-  const zoneCount = zones.length;
-  const bandH = floorH / Math.max(zoneCount, 1);
-  // Front zone narrower (matches floor near stage)
-  const taper = 36; // how much the front (top) of each band tapers in
-  const zonePaths = zones
-    .map((z, i) => {
-      const top = floorY + i * bandH;
-      const bot = top + bandH - 4;
-      // Each band: trapezoid wider at the back so it looks like seating sloping up
-      const inset = (taper * (zoneCount - i)) / zoneCount;
-      const insetNext = (taper * (zoneCount - i - 1)) / zoneCount;
-      const path = `M ${floorX + inset} ${top}
-                    L ${floorX + floorW - inset} ${top}
-                    L ${floorX + floorW - insetNext} ${bot}
-                    L ${floorX + insetNext} ${bot} Z`;
-      const colorIdx = Math.min(i, ZONE_COLORS.length - 1);
-      const isActive = z.id === activeZoneId;
-      const dimmed = activeZoneId && !isActive ? "dimmed" : "";
-      const lx = floorX + floorW / 2;
-      const ly = (top + bot) / 2 + 4;
-      return `
-        <path d="${path}"
-          class="venue-zone ${dimmed}"
-          fill="${ZONE_COLORS[colorIdx]}"
-          stroke="rgba(255,255,255,0.08)"
-          data-zone-region="${escapeAttr(z.id)}" />
-        <text x="${lx}" y="${ly}" class="venue-zone-label">${escapeText(z.name)}</text>
-      `;
-    })
-    .join("");
-
-  return `
-    <svg class="venue-map" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-      ${grads}
-      <!-- arena outline (rounded rect) -->
-      <rect x="${pad}" y="${pad}" width="${W - 2 * pad}" height="${H - 2 * pad}"
-        rx="22" fill="rgba(168,85,247,0.04)" stroke="rgba(168,85,247,0.18)" stroke-width="1" />
-
-      <!-- stage -->
-      <rect x="${W / 2 - 130}" y="${stageY}" width="260" height="${stageH}" rx="6"
-        class="venue-stage" />
-      <text x="${W / 2}" y="${stageY + stageH / 2 + 5}" class="venue-stage-label">STAGE · เวที</text>
-
-      ${zonePaths}
-
-      <text x="${W / 2}" y="${H - pad / 2}" text-anchor="middle"
-        style="font-size:10px; fill:var(--text-muted);">
-        Indoor Arena · view from above
-      </text>
-    </svg>
-  `;
-}
-
-/* ---------- Shared helpers ---------- */
-function renderGradients() {
-  return `
-    <defs>
-      <linearGradient id="grad-zone-0" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#f0abfc" />
-        <stop offset="100%" stop-color="#d946ef" />
-      </linearGradient>
-      <linearGradient id="grad-zone-1" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#c084fc" />
-        <stop offset="100%" stop-color="#a855f7" />
-      </linearGradient>
-      <linearGradient id="grad-zone-2" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#818cf8" />
-        <stop offset="100%" stop-color="#6366f1" />
-      </linearGradient>
-      <linearGradient id="grad-zone-3" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#67e8f9" />
-        <stop offset="100%" stop-color="#22d3ee" />
-      </linearGradient>
-    </defs>
-  `;
-}
-
 function renderLegend(zones, formatPrice) {
   return zones
-    .map((z, i) => {
-      const colorIdx = Math.min(i, ZONE_COLORS.length - 1);
-      const gradStops = ["#d946ef", "#a855f7", "#6366f1", "#22d3ee"];
-      return `
-        <span class="pill">
-          <span class="swatch" style="background: ${gradStops[colorIdx]}"></span>
-          ${escapeText(z.name)} · ${escapeText(formatPrice(z.price))}
-        </span>
-      `;
-    })
-    .join("");
+    .slice()
+    .sort((a, b) => b.price - a.price)
+    .map((z) => `
+      <span class="pill">
+        <span class="swatch" style="background:${z.color}"></span>
+        ${escapeText(z.name)}
+        ${z.kind === "standing" ? '<span class="stand-tag">ยืน</span>' : ""}
+        · ${escapeText(formatPrice(z.price))}
+      </span>
+    `).join("");
 }
 
-// Annulus segment between two ellipses (inner r1x/r1y → outer r2x/r2y)
-// at angles in degrees (counter-clockwise from +x).
+/* ============================================================
+   STADIUM (Rajamangala-style)
+   Stage top · standing zones in the PITCH · seated cats wrap as
+   horseshoe bands (inner = premium).
+   ============================================================ */
+function renderStadium(zones, activeZoneId) {
+  const W = 620, H = 460;
+  const cx = W / 2, cy = H * 0.60;
+  const standing = zones.filter((z) => z.kind === "standing");
+  const seated = zones.filter((z) => z.kind !== "standing");
+
+  const grads = gradients();
+  const parts = [];
+
+  // ----- seated horseshoe bands (outer rings) -----
+  const fieldRx = 280, fieldRy = 210;
+  const innerRx = 120, innerRy = 92;
+  const nb = Math.max(seated.length, 1);
+  const stepX = (fieldRx - innerRx) / nb;
+  const stepY = (fieldRy - innerRy) / nb;
+  // seated sorted premium (high price) innermost
+  const seatedSorted = seated.slice().sort((a, b) => b.price - a.price);
+  seatedSorted.forEach((z, i) => {
+    const r1x = innerRx + i * stepX, r1y = innerRy + i * stepY;
+    const r2x = innerRx + (i + 1) * stepX, r2y = innerRy + (i + 1) * stepY;
+    const start = -168, end = -12;
+    const path = bandPath(cx, cy, r1x, r1y, r2x, r2y, start, end);
+    const dim = activeZoneId && z.id !== activeZoneId ? "dimmed" : "";
+    const mid = (start + end) / 2;
+    const lr = (r1x + r2x) / 2, lry = (r1y + r2y) / 2;
+    const lx = cx + lr * Math.cos((mid * Math.PI) / 180);
+    const ly = cy + lry * Math.sin((mid * Math.PI) / 180);
+    parts.push(`<path d="${path}" class="venue-zone ${dim}" fill="${z.color}" fill-opacity="0.9"
+      stroke="rgba(0,0,0,0.25)" data-zone-region="${escapeAttr(z.id)}"/>`);
+    parts.push(`<text x="${lx}" y="${ly}" class="venue-zone-label">${escapeText(z.name)}</text>`);
+  });
+
+  // ----- standing zones in the pitch (stacked rectangles near stage) -----
+  const standSorted = standing.slice().sort((a, b) => b.price - a.price);
+  const pitchTop = cy - innerRy + 8;
+  const pitchH = innerRy * 2 - 16;
+  const slotH = pitchH / Math.max(standSorted.length, 1);
+  standSorted.forEach((z, i) => {
+    const y = pitchTop + i * slotH;
+    const dim = activeZoneId && z.id !== activeZoneId ? "dimmed" : "";
+    parts.push(`<rect x="${cx - 96}" y="${y + 3}" width="192" height="${slotH - 6}" rx="6"
+      class="venue-zone ${dim}" fill="${z.color}" fill-opacity="0.92"
+      stroke="rgba(0,0,0,0.25)" data-zone-region="${escapeAttr(z.id)}"/>`);
+    parts.push(`<text x="${cx}" y="${y + slotH / 2 + 4}" class="venue-zone-label">${escapeText(z.name)} ⬤</text>`);
+  });
+
+  const stageY = cy - fieldRy - 50;
+  return `
+    <svg class="venue-map" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+      ${grads}
+      <ellipse cx="${cx}" cy="${cy}" rx="${fieldRx + 14}" ry="${fieldRy + 14}"
+        fill="rgba(168,85,247,0.05)" stroke="rgba(168,85,247,0.2)"/>
+      ${parts.join("")}
+      <rect x="${cx - 120}" y="${stageY}" width="240" height="38" rx="6" class="venue-stage"/>
+      <text x="${cx}" y="${stageY + 24}" class="venue-stage-label">STAGE · เวที</text>
+      <text x="${cx}" y="20" text-anchor="middle" style="font-size:10px;fill:#8b80a8;">Stadium · มุมมองด้านบน · ⬤ = โซนยืน</text>
+    </svg>
+  `;
+}
+
+/* ============================================================
+   ARENA (Impact-style)
+   Stage top · ARENA/VIP standing on the floor · STA/STB side
+   strips · Level tiers as horizontal bands at the back.
+   ============================================================ */
+function renderArena(zones, activeZoneId) {
+  const W = 620, H = 460, pad = 28;
+  const grads = gradients();
+  const parts = [];
+
+  const stageY = pad, stageH = 42;
+  const arenaTop = stageY + stageH + 12;
+  const arenaBottom = H - pad - 8;
+  const arenaH = arenaBottom - arenaTop;
+
+  const isSide = (z) => /sta|stb|left|right|ซ้าย|ขวา/i.test(z.name);
+  const sideZones = zones.filter(isSide);
+  const standingFloor = zones.filter((z) => z.kind === "standing" && !isSide(z));
+  const backTiers = zones.filter((z) => z.kind !== "standing" && !isSide(z));
+
+  // side strips occupy left & right gutters
+  const sideW = sideZones.length ? 78 : 0;
+  const floorX = pad + sideW + (sideZones.length ? 10 : 60);
+  const floorW = W - 2 * (pad + sideW) - (sideZones.length ? 20 : 120);
+
+  // back tiers (trapezoid bands at the bottom = furthest from stage)
+  const tierBandH = backTiers.length ? Math.min(56, arenaH * 0.5 / backTiers.length) : 0;
+  const tiersTotalH = tierBandH * backTiers.length;
+  const floorBottom = arenaBottom - tiersTotalH - (backTiers.length ? 8 : 0);
+
+  // ---- standing floor (stacked, premium near stage) ----
+  const floorSorted = standingFloor.slice().sort((a, b) => b.price - a.price);
+  const floorAreaH = floorBottom - arenaTop;
+  const fSlot = floorAreaH / Math.max(floorSorted.length, 1);
+  floorSorted.forEach((z, i) => {
+    const y = arenaTop + i * fSlot;
+    const dim = activeZoneId && z.id !== activeZoneId ? "dimmed" : "";
+    parts.push(`<rect x="${floorX}" y="${y + 3}" width="${floorW}" height="${fSlot - 6}" rx="6"
+      class="venue-zone ${dim}" fill="${z.color}" fill-opacity="0.92"
+      stroke="rgba(0,0,0,0.25)" data-zone-region="${escapeAttr(z.id)}"/>`);
+    parts.push(`<text x="${floorX + floorW / 2}" y="${y + fSlot / 2 + 4}" class="venue-zone-label">${escapeText(z.name)} ⬤</text>`);
+  });
+
+  // ---- side strips ----
+  const sideSorted = sideZones.slice();
+  sideSorted.forEach((z, i) => {
+    const left = i % 2 === 0;
+    const x = left ? pad : W - pad - sideW;
+    const dim = activeZoneId && z.id !== activeZoneId ? "dimmed" : "";
+    parts.push(`<rect x="${x}" y="${arenaTop + 3}" width="${sideW}" height="${floorAreaH - 6}" rx="6"
+      class="venue-zone ${dim}" fill="${z.color}" fill-opacity="0.92"
+      stroke="rgba(0,0,0,0.25)" data-zone-region="${escapeAttr(z.id)}"/>`);
+    parts.push(`<text x="${x + sideW / 2}" y="${arenaTop + floorAreaH / 2}" class="venue-zone-label" transform="rotate(-90 ${x + sideW / 2} ${arenaTop + floorAreaH / 2})">${escapeText(z.name)}</text>`);
+  });
+
+  // ---- back tiers ----
+  const tiersSorted = backTiers.slice().sort((a, b) => b.price - a.price);
+  tiersSorted.forEach((z, i) => {
+    const top = floorBottom + 8 + i * tierBandH;
+    const inset = 40 - i * (40 / Math.max(tiersSorted.length, 1));
+    const insetNext = 40 - (i + 1) * (40 / Math.max(tiersSorted.length, 1));
+    const x0 = pad, x1 = W - pad;
+    const path = `M ${x0 + inset} ${top} L ${x1 - inset} ${top}
+                  L ${x1 - insetNext} ${top + tierBandH - 4} L ${x0 + insetNext} ${top + tierBandH - 4} Z`;
+    const dim = activeZoneId && z.id !== activeZoneId ? "dimmed" : "";
+    parts.push(`<path d="${path.replace(/\s+/g, " ")}" class="venue-zone ${dim}" fill="${z.color}" fill-opacity="0.9"
+      stroke="rgba(0,0,0,0.25)" data-zone-region="${escapeAttr(z.id)}"/>`);
+    parts.push(`<text x="${W / 2}" y="${top + tierBandH / 2 + 2}" class="venue-zone-label">${escapeText(z.name)}</text>`);
+  });
+
+  return `
+    <svg class="venue-map" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+      ${grads}
+      <rect x="${pad - 4}" y="${pad - 4}" width="${W - 2 * pad + 8}" height="${H - 2 * pad + 8}" rx="20"
+        fill="rgba(168,85,247,0.05)" stroke="rgba(168,85,247,0.2)"/>
+      <rect x="${W / 2 - 130}" y="${stageY}" width="260" height="${stageH}" rx="6" class="venue-stage"/>
+      <text x="${W / 2}" y="${stageY + stageH / 2 + 5}" class="venue-stage-label">STAGE · เวที</text>
+      ${parts.join("")}
+      <text x="${W / 2}" y="${H - 8}" text-anchor="middle" style="font-size:10px;fill:#8b80a8;">Indoor Arena · มุมมองด้านบน · ⬤ = โซนยืน</text>
+    </svg>
+  `;
+}
+
+/* ---------- helpers ---------- */
+function gradients() {
+  return `<defs>
+    <filter id="zsh" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>`;
+}
+
 function bandPath(cx, cy, r1x, r1y, r2x, r2y, startDeg, endDeg) {
-  const a1 = (startDeg * Math.PI) / 180;
-  const a2 = (endDeg * Math.PI) / 180;
-  const outerStart = { x: cx + r2x * Math.cos(a1), y: cy + r2y * Math.sin(a1) };
-  const outerEnd   = { x: cx + r2x * Math.cos(a2), y: cy + r2y * Math.sin(a2) };
-  const innerEnd   = { x: cx + r1x * Math.cos(a2), y: cy + r1y * Math.sin(a2) };
-  const innerStart = { x: cx + r1x * Math.cos(a1), y: cy + r1y * Math.sin(a1) };
+  const a1 = (startDeg * Math.PI) / 180, a2 = (endDeg * Math.PI) / 180;
+  const oS = { x: cx + r2x * Math.cos(a1), y: cy + r2y * Math.sin(a1) };
+  const oE = { x: cx + r2x * Math.cos(a2), y: cy + r2y * Math.sin(a2) };
+  const iE = { x: cx + r1x * Math.cos(a2), y: cy + r1y * Math.sin(a2) };
+  const iS = { x: cx + r1x * Math.cos(a1), y: cy + r1y * Math.sin(a1) };
   const large = Math.abs(endDeg - startDeg) > 180 ? 1 : 0;
-  // sweep direction: outer arc CW (sweep=1), inner arc CCW (sweep=0)
-  return `M ${outerStart.x} ${outerStart.y}
-          A ${r2x} ${r2y} 0 ${large} 1 ${outerEnd.x} ${outerEnd.y}
-          L ${innerEnd.x} ${innerEnd.y}
-          A ${r1x} ${r1y} 0 ${large} 0 ${innerStart.x} ${innerStart.y}
-          Z`.replace(/\s+/g, " ");
+  return `M ${oS.x} ${oS.y} A ${r2x} ${r2y} 0 ${large} 1 ${oE.x} ${oE.y}
+          L ${iE.x} ${iE.y} A ${r1x} ${r1y} 0 ${large} 0 ${iS.x} ${iS.y} Z`.replace(/\s+/g, " ");
 }
 
-function escapeText(s) {
-  return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-}
-function escapeAttr(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  }[c]));
-}
+function escapeText(s) { return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+function escapeAttr(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }

@@ -75,7 +75,7 @@
 
     function renderTicket(b) {
       const seats = b.BookedSeat.map((s) => `
-        <li><span style="color:#e879f9">${escapeHtml(s.Zone.name)}</span> · แถว ${s.row} ที่ ${s.number}
+        <li><span style="color:#e879f9">${escapeHtml(s.Zone.name)}</span> · ${s.row === 0 ? "บัตรยืน" : "แถว " + s.row + " ที่ " + s.number}
           · <span style="color:#a3a3a3">${formatTHB(s.Zone.price)}</span></li>
       `).join("");
       const isPaid = b.status === "PAID";

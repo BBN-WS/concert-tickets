@@ -503,6 +503,41 @@ h2::before {
 .venue-legend .swatch {
   width: 12px; height: 12px; border-radius: 3px;
 }
+.venue-legend .stand-tag {
+  font-size: 9px; padding: 1px 5px; border-radius: 4px;
+  background: rgba(255,255,255,0.12); color: var(--text-soft);
+  margin: 0 2px; letter-spacing: 0.04em;
+}
+.venue-zone-label { text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+
+/* Standing-zone quantity picker */
+.qty-wrap {
+  margin-top: 22px; padding-top: 22px;
+  border-top: 1px solid var(--border);
+}
+.qty-card {
+  background: rgba(7,6,12,0.4);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 22px;
+  text-align: center;
+}
+.qty-card .qty-zone { font-family: "Sora", sans-serif; font-size: 18px; font-weight: 700; margin: 0; }
+.qty-card .qty-price { color: var(--accent); font-weight: 600; margin: 4px 0 2px; }
+.qty-card .qty-cap { font-size: 12px; color: var(--text-muted); margin: 0 0 18px; }
+.qty-stepper {
+  display: inline-flex; align-items: center; gap: 18px;
+  background: var(--panel-solid); border: 1px solid var(--border);
+  border-radius: 999px; padding: 6px;
+}
+.qty-stepper button {
+  width: 40px; height: 40px; border-radius: 50%; border: none;
+  background: rgba(168,85,247,0.2); color: var(--text);
+  font-size: 22px; line-height: 1; transition: background .15s;
+}
+.qty-stepper button:hover:not(:disabled) { background: rgba(217,70,239,0.4); }
+.qty-stepper button:disabled { opacity: 0.35; cursor: not-allowed; }
+.qty-stepper .qty-val { font-family: "Sora", sans-serif; font-size: 26px; font-weight: 700; min-width: 40px; }
+.qty-hint { font-size: 12px; color: var(--text-muted); margin-top: 14px; }
 
 /* Seat grid (after zone selection) */
 .seat-grid-wrap {
@@ -779,7 +814,17 @@ h2::before {
   grid-template-columns: 1.5fr 100px 80px 80px auto;
   align-items: center; margin-bottom: 8px;
 }
-.zone-row input { padding: 8px 12px; font-size: 13px; }
+.zone-row.zone-row-x {
+  grid-template-columns: 1.4fr 90px 78px 70px 70px auto;
+}
+.zone-row input, .zone-row select { padding: 8px 10px; font-size: 13px; }
+.zone-row select {
+  background: rgba(7,6,12,0.5); border: 1px solid var(--border);
+  color: var(--text); border-radius: 10px;
+}
+@media (max-width: 620px) {
+  .zone-row, .zone-row.zone-row-x { grid-template-columns: 1fr 1fr; }
+}
 
 /* ============================================================
    Utility

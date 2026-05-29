@@ -4,12 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>บัตรของฉัน — TicketBox</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d946ef'/%3E%3Crect x='9' y='14' width='14' height='2' fill='white'/%3E%3Crect x='9' y='10' width='14' height='2' fill='white'/%3E%3Crect x='9' y='18' width='14' height='2' fill='white'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="assets/app.css" />
 </head>
 <body>
+  <canvas id="confetti-canvas"></canvas>
   <div id="nav-root"></div>
   <main class="container">
-    <h1>บัตรของฉัน</h1>
+    <div class="page-head"><h1>บัตรของฉัน</h1></div>
     <div id="flash" class="flash hidden"></div>
     <div id="list"><p class="muted">กำลังโหลด...</p></div>
   </main>
@@ -19,6 +21,7 @@
   <script type="module">
     import { supabase, formatTHB, formatThaiDate, requireLogin } from "./assets/supabase.js";
     import { renderNavbar } from "./assets/navbar.js";
+    import { burstConfetti } from "./assets/confetti.js";
     renderNavbar();
 
     const user = await requireLogin();
@@ -32,6 +35,7 @@
         ชำระเงินสำเร็จ — รับ QR e-ticket ด้านล่างได้เลย
       `;
       flash.classList.remove("hidden");
+      burstConfetti();
     }
 
     // Wait for QRCode global (loaded as classic <script>, not module)

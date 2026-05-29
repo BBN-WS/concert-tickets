@@ -4,38 +4,47 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>สมัครสมาชิก — TicketBox</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d946ef'/%3E%3Crect x='9' y='14' width='14' height='2' fill='white'/%3E%3Crect x='9' y='10' width='14' height='2' fill='white'/%3E%3Crect x='9' y='18' width='14' height='2' fill='white'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="assets/app.css" />
 </head>
 <body>
   <div id="nav-root"></div>
-  <main class="container-sm">
-    <div class="panel">
-      <h1>สมัครสมาชิก</h1>
-      <form id="register-form">
-        <div class="field">
-          <label for="name">ชื่อ</label>
-          <input id="name" type="text" required />
+  <main class="container">
+    <div class="auth-split">
+      <aside class="auth-aside">
+        <a href="index.html" class="brand"><span class="brand-mark"></span>
+          Ticket<span style="background:linear-gradient(135deg,var(--accent),var(--accent-3));-webkit-background-clip:text;background-clip:text;color:transparent;">Box</span>
+        </a>
+        <div>
+          <h2>เริ่มต้นใช้งานฟรี</h2>
+          <p>สร้างบัญชีเพื่อจองบัตรคอนเสิร์ตโปรดของคุณได้ในไม่กี่คลิก</p>
+          <div style="margin-top:20px">
+            <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> สมัครฟรี ไม่มีค่าใช้จ่าย</div>
+            <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> จองได้สูงสุด 6 ที่นั่งต่อรายการ</div>
+            <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> เก็บประวัติการจองอัตโนมัติ</div>
+          </div>
         </div>
-        <div class="field">
-          <label for="email">อีเมล</label>
-          <input id="email" type="email" required autocomplete="email" />
-        </div>
-        <div class="field">
-          <label for="password">รหัสผ่าน (อย่างน้อย 6 ตัว)</label>
-          <input id="password" type="password" minlength="6" required autocomplete="new-password" />
-        </div>
-        <p id="error" class="error hidden"></p>
-        <p id="info" class="muted hidden"></p>
-        <button class="btn btn-primary" style="width:100%; padding:10px" type="submit" id="submit-btn">
-          สมัครสมาชิก
-        </button>
-      </form>
-      <p class="muted" style="margin-top:14px">
-        มีบัญชีแล้ว? <a href="login.html" style="color:#e879f9">เข้าสู่ระบบ</a>
-      </p>
+        <p class="muted" style="font-size:12px">© 2026 TicketBox</p>
+      </aside>
+
+      <div class="auth-form">
+        <h1>สมัครสมาชิก</h1>
+        <p class="subtitle">ใช้เวลาไม่ถึงหนึ่งนาที</p>
+        <form id="register-form">
+          <div class="field"><label for="name">ชื่อ</label><input id="name" type="text" required /></div>
+          <div class="field"><label for="email">อีเมล</label><input id="email" type="email" required autocomplete="email" /></div>
+          <div class="field"><label for="password">รหัสผ่าน (อย่างน้อย 6 ตัว)</label>
+            <input id="password" type="password" minlength="6" required autocomplete="new-password" /></div>
+          <p id="error" class="error hidden"></p>
+          <p id="info" class="flash hidden"></p>
+          <button class="btn btn-primary btn-full btn-lg" type="submit" id="submit-btn">สมัครสมาชิก</button>
+        </form>
+        <p class="muted" style="margin-top:16px">
+          มีบัญชีแล้ว? <a href="login.html" style="color:var(--accent)">เข้าสู่ระบบ</a>
+        </p>
+      </div>
     </div>
   </main>
-  <footer>© 2026 TicketBox</footer>
 
   <script type="module">
     import { supabase } from "./assets/supabase.js";
@@ -52,14 +61,13 @@
       errorEl.classList.add("hidden");
       infoEl.classList.add("hidden");
       submitBtn.disabled = true;
-      submitBtn.innerHTML = '<span class="spinner"></span>กำลังสมัคร...';
+      submitBtn.innerHTML = '<span class="spinner"></span> กำลังสมัคร...';
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
       const name = document.getElementById("name").value;
 
       const { data, error } = await supabase.auth.signUp({
-        email, password,
-        options: { data: { name } },
+        email, password, options: { data: { name } },
       });
       submitBtn.disabled = false;
       submitBtn.textContent = "สมัครสมาชิก";
@@ -71,7 +79,7 @@
       if (data.session) {
         location.href = "index.html";
       } else {
-        infoEl.textContent = "สมัครสำเร็จ — โปรดตรวจอีเมลเพื่อยืนยันบัญชี แล้วกลับมา login";
+        infoEl.textContent = "สมัครสำเร็จ — โปรดตรวจอีเมลเพื่อยืนยันบัญชี แล้วกลับมาเข้าสู่ระบบ";
         infoEl.classList.remove("hidden");
       }
     });

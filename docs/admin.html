@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin — TicketBox</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d946ef'/%3E%3Crect x='9' y='14' width='14' height='2' fill='white'/%3E%3Crect x='9' y='10' width='14' height='2' fill='white'/%3E%3Crect x='9' y='18' width='14' height='2' fill='white'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="assets/app.css" />
 </head>
 <body>
@@ -41,8 +42,8 @@
       const paidCount = (bookings ?? []).length;
 
       document.getElementById("root").innerHTML = `
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px">
-          <h1 style="margin:0">Admin Dashboard</h1>
+        <div class="page-head">
+          <h1>Admin Dashboard</h1>
           <button class="btn btn-primary" id="toggle-form">+ เพิ่มคอนเสิร์ต</button>
         </div>
         <div class="stats">
@@ -51,7 +52,7 @@
           <div class="stat"><p class="label">รายได้รวม</p><p class="value accent">${formatTHB(totalRev)}</p></div>
         </div>
 
-        <div id="new-concert-panel" class="panel hidden" style="margin-bottom:20px">
+        <div id="new-concert-panel" class="panel hidden" style="margin-bottom:22px">
           ${renderNewForm()}
         </div>
 
@@ -59,7 +60,7 @@
         <div class="panel" style="padding:0; overflow:hidden">
           <table class="table">
             <thead><tr>
-              <th>คอนเสิร์ต</th><th>วันที่</th><th>โซน</th><th style="text-align:right">การจอง</th><th></th>
+              <th>คอนเสิร์ต</th><th>วันที่</th><th>โซน</th><th class="text-right">การจอง</th><th></th>
             </tr></thead>
             <tbody>
               ${(concerts ?? []).map((c) => `
@@ -67,8 +68,8 @@
                   <td><div style="font-weight:600">${escapeHtml(c.title)}</div><div class="muted" style="font-size:12px">${escapeHtml(c.artist)}</div></td>
                   <td class="muted">${escapeHtml(formatThaiDate(c.date))}</td>
                   <td class="muted">${c.Zone.length} โซน</td>
-                  <td style="text-align:right">${c.Booking[0]?.count ?? 0}</td>
-                  <td style="text-align:right"><button class="btn btn-danger btn-sm" data-del="${escapeAttr(c.id)}" data-title="${escapeAttr(c.title)}">ลบ</button></td>
+                  <td class="text-right">${c.Booking[0]?.count ?? 0}</td>
+                  <td><div class="row-actions"><button class="btn btn-danger btn-sm" data-del="${escapeAttr(c.id)}" data-title="${escapeAttr(c.title)}">ลบ</button></div></td>
                 </tr>
               `).join("") || `<tr><td colspan="5" style="text-align:center; padding:24px" class="muted">ยังไม่มีคอนเสิร์ต</td></tr>`}
             </tbody>
@@ -98,7 +99,7 @@
           <div class="field"><label>URL รูปปก</label><input id="f-img" type="url" value="https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=1200" required/></div>
           <div class="field"><label>รายละเอียด</label><textarea id="f-desc" rows="3"></textarea></div>
           <div>
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px">
+            <div class="flex-between" style="margin-bottom:8px">
               <label style="font-weight:500">โซนที่นั่ง</label>
               <button type="button" class="btn btn-sm" id="add-zone">+ เพิ่มโซน</button>
             </div>

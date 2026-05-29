@@ -27,7 +27,10 @@
     const paidId = new URLSearchParams(location.search).get("paid");
     if (paidId) {
       const flash = document.getElementById("flash");
-      flash.textContent = "ชำระเงินสำเร็จ — รับ QR e-ticket ด้านล่างได้เลย";
+      flash.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+        ชำระเงินสำเร็จ — รับ QR e-ticket ด้านล่างได้เลย
+      `;
       flash.classList.remove("hidden");
     }
 
@@ -92,7 +95,7 @@
                   <p class="artist">${escapeHtml(b.Concert.artist)}</p>
                   <h3>${escapeHtml(b.Concert.title)}</h3>
                 </div>
-                <span class="badge ${isPaid ? "badge-paid" : "badge-pending"}">${isPaid ? "ชำระแล้ว" : "รอชำระเงิน"}</span>
+                <span class="badge ${isPaid ? "badge-paid" : "badge-pending"}"><span class="dot"></span>${isPaid ? "ชำระแล้ว" : "รอชำระเงิน"}</span>
               </div>
               <p class="muted">${escapeHtml(formatThaiDate(b.Concert.date))}</p>
               <p class="muted" style="margin-bottom:10px">${escapeHtml(b.Concert.venue)}</p>

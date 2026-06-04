@@ -1,14 +1,22 @@
 import Link from "next/link";
+import type { Concert, Zone } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { formatTHB, formatThaiDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const concerts = await prisma.concert.findMany({
-    orderBy: { date: "asc" },
-    include: { zones: true },
-  });
+  let concerts: (Concert & { zones: Zone[] })[] = [];
+  let loadError = false;
+  try {
+    concerts = await prisma.concert.findMany({
+      orderBy: { date: "asc" },
+      include: { zones: true },
+    });
+  } catch (err) {
+    console.error("Failed to load concerts:", err);
+    loadError = true;
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
@@ -59,8 +67,13 @@ export default async function Home() {
               </Link>
             );
           })}
-          {concerts.length === 0 && (
+          {!loadError && concerts.length === 0 && (
             <p className="text-neutral-500">ยังไม่มีคอนเสิร์ตในระบบ</p>
+          )}
+          {loadError && (
+            <p className="text-neutral-500">
+              ขออภัย ไม่สามารถโหลดรายการคอนเสิร์ตได้ในขณะนี้ กรุณาลองใหม่ภายหลัง
+            </p>
           )}
         </div>
       </section>

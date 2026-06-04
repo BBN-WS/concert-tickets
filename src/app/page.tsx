@@ -1,21 +1,25 @@
 import Link from "next/link";
-import type { Concert, Zone } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { formatTHB, formatThaiDate } from "@/lib/format";
+import { mockConcerts, type MockConcert } from "@/lib/mock-data";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  let concerts: (Concert & { zones: Zone[] })[] = [];
-  let loadError = false;
+  let concerts: Pick<
+    MockConcert,
+    "id" | "title" | "artist" | "venue" | "date" | "imageUrl" | "zones"
+  >[];
   try {
     concerts = await prisma.concert.findMany({
       orderBy: { date: "asc" },
       include: { zones: true },
     });
   } catch (err) {
-    console.error("Failed to load concerts:", err);
-    loadError = true;
+    // No database configured — fall back to static demo data so the
+    // site stays fully browsable (e.g. frontend-only preview deploys).
+    console.error("Falling back to mock concerts:", err);
+    concerts = mockConcerts;
   }
 
   return (
@@ -67,13 +71,8 @@ export default async function Home() {
               </Link>
             );
           })}
-          {!loadError && concerts.length === 0 && (
+          {concerts.length === 0 && (
             <p className="text-neutral-500">ยังไม่มีคอนเสิร์ตในระบบ</p>
-          )}
-          {loadError && (
-            <p className="text-neutral-500">
-              ขออภัย ไม่สามารถโหลดรายการคอนเสิร์ตได้ในขณะนี้ กรุณาลองใหม่ภายหลัง
-            </p>
           )}
         </div>
       </section>

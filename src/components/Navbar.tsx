@@ -22,6 +22,9 @@ export function Navbar() {
               <Link href="/tickets" className="hover:text-fuchsia-400">
                 บัตรของฉัน
               </Link>
+              <Link href="/chat" className="hover:text-fuchsia-400">
+                แชต
+              </Link>
               {user?.role === "ADMIN" && (
                 <Link
                   href="/admin"

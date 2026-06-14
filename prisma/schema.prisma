@@ -19,6 +19,11 @@ enum BookingStatus {
   CANCELLED
 }
 
+enum ChatSender {
+  USER
+  SUPPORT
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -27,6 +32,7 @@ model User {
   role      Role     @default(USER)
   createdAt DateTime @default(now())
   bookings  Booking[]
+  chatMessages ChatMessage[]
 }
 
 model Concert {
@@ -76,4 +82,15 @@ model BookedSeat {
   zone      Zone    @relation(fields: [zoneId], references: [id], onDelete: Cascade)
 
   @@unique([zoneId, row, number])
+}
+
+model ChatMessage {
+  id        String     @id @default(cuid())
+  userId    String
+  sender    ChatSender
+  content   String
+  createdAt DateTime   @default(now())
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
